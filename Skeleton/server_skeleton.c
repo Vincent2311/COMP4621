@@ -16,6 +16,8 @@
 #define MAX_USERS 50				 // max number of users
 static unsigned int users_count = 0; // number of registered users
 
+//TODO: check \0 in the name
+
 static user_info_t *listOfUsers[MAX_USERS] = {0}; // list of users
 
 /* Add user to userList */
@@ -48,6 +50,7 @@ int isNewUser(char *name)
 	/*******************************************/
 	/* Compare the name with existing usernames */
 	/*******************************************/
+	printf("enter isNew");
 	for (unsigned int i = 0; i < users_count; i++)
 	{
 		if (!strcmp(name, listOfUsers[i]->username))
@@ -56,7 +59,7 @@ int isNewUser(char *name)
 			break;
 		}
 	}
-
+	
 	return flag;
 }
 
@@ -70,7 +73,7 @@ char *get_username(int ss)
 	/*******************************************/
 	for (unsigned int i = 0; i < users_count; i++)
 	{
-		if (!strcmp(ss, listOfUsers[i]->sockfd))
+		if (ss == listOfUsers[i]->sockfd)
 		{
 			strcpy(uname, listOfUsers[i]->username);
 			break;
@@ -219,7 +222,7 @@ int main()
 						// send welcome message
 						bzero(buffer, sizeof(buffer));
 						strcpy(buffer, "Welcome to the chat room!\nPlease enter a nickname.\n");
-						if (send(newfd, buffer, sizeof(buffer), 0) == -1)
+						if (send(client_socket, buffer, sizeof(buffer), 0) == -1)
 							perror("send");
 					}
 				}
@@ -251,8 +254,13 @@ int main()
 							/********************************/
 							/* Get the user name and add the user to the userlist*/
 							/**********************************/
-							char *name;
-    						name = (char *)buffer + 8;
+							char name[C_NAME_LEN+1];
+							int j = 8;
+							for (;buffer[j] !='\0';j++){
+								name[j-8] = buffer[j];
+							}
+							name[j] = '\0';
+    						
 							printf("The name of the user of incoming connection is: %s\n",name); 
 							if (isNewUser(name) == -1)
 							{
@@ -262,7 +270,7 @@ int main()
 								user_info_t *new_user;
 								new_user->sockfd = pfds[i].fd;
 								new_user->state = 1;
-								snprintf(new_user->username, sizeof(new_user->username), "%s", name);
+								strcpy(new_user->username,name);
 								user_add(new_user);
 								printf("add user name: %s\n",name);
 								/********************************/
@@ -352,8 +360,9 @@ int main()
 							/* Broadcast the leave message to the other users in the group*/
 							/**********************************/
 							for (unsigned int j = 1; j < users_count;j++){
-									if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
-										perror("send");
+								if (j==i) continue;
+								if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
+									perror("send");
 							}
 							/*********************************/
 							/* Change the state of this user to offline*/
@@ -383,23 +392,25 @@ int main()
 							/* Concatenate all the user names into the tab-separated char ToClient and send it to the requesting client*/
 							/* The state of each user (online or offline)should be labelled.*/
 							/***************************************/
-							char* user_name_state[C_NAME_LEN + 10];
+							char user_name_state[C_NAME_LEN + 10];
 							for (unsigned int j = 0; j < users_count; j++)
 							{
 								if(j==i) continue;
-								strcat(user_name_state,listOfUsers[j]->username);
+								strcpy(user_name_state,listOfUsers[j]->username);
 								if(listOfUsers[j]->state)
 									strcat(user_name_state,"*");
-								strcat(ToClient, user_name_state);
+								if(j==0) strcpy(ToClient, user_name_state);
+								else strcat(ToClient, user_name_state); //TODO:
 								strcat(ToClient,"\t");
+								bzero(user_name_state, sizeof(user_name_state));
 							}
 							if (send(pfds[i].fd, ToClient, sizeof(ToClient), 0) == -1)
-										perror("send");
+								perror("send");
 							
 							bzero(buffer, sizeof(buffer));
 							strcpy(buffer, "* means this user online");
 							if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
-										perror("send");
+								perror("send");
 						}
 						else if (strncmp(buffer, "#", 1) == 0)
 						{

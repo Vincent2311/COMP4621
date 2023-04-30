@@ -25,8 +25,16 @@ void recv_server_msg_handler() {
     /********************************/
 	/* receive message from the server and desplay on the screen*/
 	/**********************************/
-
-
+	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+	char buffer[MAX];
+	bzero(buffer, sizeof(buffer));
+	pthread_mutex_lock(&mutex);
+	if (recv(sockfd, buffer, sizeof(buffer), 0)==-1){
+		perror("recv");
+	}
+	printf("%s", buffer);
+	pthread_mutex_unlock(&mutex);
+	pthread_exit(NULL); 
 }
 
 int main(){
@@ -74,8 +82,16 @@ int main(){
 	/* Input the nickname and send a message to the server */
 	/* Note that we concatenate "REGISTER" before the name to notify the server it is the register/login message*/
 	/*******************************************/
-	
-
+	char name[C_NAME_LEN+1];
+	scanf("%[^\n]s",name);
+	bzero(buffer, sizeof(buffer));
+	strcpy(buffer,"REGISTER");
+	strcat(buffer, name);
+	strcat(buffer,"\0");  //TODO:??
+	if (send(sockfd, buffer, sizeof(buffer), 0)<0){
+		puts("Sending registration failed");
+		exit(1);
+	}
 
 
     // receive welcome message "welcome xx to joint the chatroom. A new account has been created." (registration case) or "welcome back! The message box contains:..." (login case)
@@ -89,8 +105,12 @@ int main(){
 	/* Create a thread to receive message from the server*/
 	/* pthread_t recv_server_msg_thread;*/
 	/*****************************************************/
-
-
+	pthread_t recv_server_msg_thread;
+	if(pthread_create( &recv_server_msg_thread, NULL, (void*)recv_server_msg_handler, NULL)!=0)
+    {
+        printf("Create pthread error!\n");
+		exit(1);
+    }
     
 	// chat with the server
 	for (;;) {
@@ -99,14 +119,18 @@ int main(){
 		while ((buffer[n++] = getchar()) != '\n')
 			;
 		if ((strncmp(buffer, "EXIT", 4)) == 0) {
-			printf("Client Exit...\n");
+			printf("Client Exit...\n"); //TODO: ?
 			/********************************************/
 			/* Send exit message to the server and exit */
 			/* Remember to terminate the thread and close the socket */
 			/********************************************/
-
-
-
+			if (send(sockfd, buffer, sizeof(buffer), 0)<0){
+				puts("Sending MSG_EXIT failed");
+				exit(1);
+			}
+			pthread_join(recv_server_msg_thread,NULL);
+			close(sockfd);
+			printf("It's OK to Close the Window Now OR enter ctrl+c\n");
 		}
 		else if (strncmp(buffer, "WHO", 3) == 0) {
 			printf("Getting user list, pls hold on...\n");
@@ -127,9 +151,13 @@ int main(){
 			/*************************************/
 			/* Sending broadcast message. The send message should be of the format "username: message"*/
 			/**************************************/
-
-
-			
+			char msg[MAX+10];
+			strcpy(msg,"username: ");  //TODO: check edge case
+			strcat(msg,buffer);
+			if (send(sockfd, msg, sizeof(msg), 0)<0){
+				printf("Sending broadcast message failed...");
+				exit(1);
+			}
 		}
 	}
 	return 0;
