@@ -25,16 +25,15 @@ void recv_server_msg_handler() {
     /********************************/
 	/* receive message from the server and desplay on the screen*/
 	/**********************************/
-	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-	char buffer[MAX];
-	bzero(buffer, sizeof(buffer));
-	pthread_mutex_lock(&mutex);
-	if (recv(sockfd, buffer, sizeof(buffer), 0)==-1){
-		perror("recv");
+	while (1)
+	{
+		char buffer[MAX];
+		bzero(buffer, sizeof(buffer));
+		if (recv(sockfd, buffer, sizeof(buffer), 0)==-1){
+			perror("recv");
+		}
+		printf("%s\n", buffer);
 	}
-	printf("%s", buffer);
-	pthread_mutex_unlock(&mutex);
-	pthread_exit(NULL); 
 }
 
 int main(){
@@ -76,22 +75,33 @@ int main(){
     if (nbytes = recv(sockfd, buffer, sizeof(buffer), 0)==-1){
         perror("recv");
     }
-    printf("%s", buffer);
+    printf("%s\n", buffer);
 
 	/*************************************/
 	/* Input the nickname and send a message to the server */
 	/* Note that we concatenate "REGISTER" before the name to notify the server it is the register/login message*/
 	/*******************************************/
-	char name[C_NAME_LEN+1];
-	scanf("%[^\n]s",name);
+	char name[MAX];
+	if (fgets(name, sizeof(name), stdin) == NULL) {
+        	printf("Fail to read the input stream\n");
+    }
+    else {
+        name[strcspn(name, "\n")] = '\0';
+    	}
+	while (strlen(name) > C_NAME_LEN)
+	{
+		printf("Input name exceeds max name lenght\n");
+		scanf("%s",name);
+	}
 	bzero(buffer, sizeof(buffer));
 	strcpy(buffer,"REGISTER");
 	strcat(buffer, name);
-	strcat(buffer,"\0");  //TODO:??
 	if (send(sockfd, buffer, sizeof(buffer), 0)<0){
 		puts("Sending registration failed");
 		exit(1);
 	}
+	printf("Register/Login message sent to server.\n");
+
 
 
     // receive welcome message "welcome xx to joint the chatroom. A new account has been created." (registration case) or "welcome back! The message box contains:..." (login case)
@@ -99,7 +109,7 @@ int main(){
     if (recv(sockfd, buffer, sizeof(buffer), 0)==-1){
         perror("recv");
     }
-    printf("%s", buffer);
+    printf("%s\n", buffer);
 
     /*****************************************************/
 	/* Create a thread to receive message from the server*/
@@ -116,8 +126,12 @@ int main(){
 	for (;;) {
 		bzero(buffer, sizeof(buffer));
 		n = 0;
-		while ((buffer[n++] = getchar()) != '\n')
-			;
+		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+        	printf("Fail to read the input stream\n");
+    	}
+    	else {
+        	buffer[strcspn(buffer, "\n")] = '\0'; 
+    	}
 		if ((strncmp(buffer, "EXIT", 4)) == 0) {
 			printf("Client Exit...\n"); //TODO: ?
 			/********************************************/
@@ -128,7 +142,7 @@ int main(){
 				puts("Sending MSG_EXIT failed");
 				exit(1);
 			}
-			pthread_join(recv_server_msg_thread,NULL);
+			// pthread_join(recv_server_msg_thread,NULL);
 			close(sockfd);
 			printf("It's OK to Close the Window Now OR enter ctrl+c\n");
 		}
@@ -142,8 +156,9 @@ int main(){
 		}
 		else if (strncmp(buffer, "#", 1) == 0) {
 			// If the user want to send a direct message to another user, e.g., aa wants to send direct message "Hello" to bb, aa needs to input "#bb:Hello"
+			printf("send direct message\n");
 			if (send(sockfd, buffer, sizeof(buffer), 0)<0){
-				printf("Sending direct message failed...");
+				printf("Sending direct message failed...\n");
 				exit(1);
 			}
 		}
@@ -152,10 +167,12 @@ int main(){
 			/* Sending broadcast message. The send message should be of the format "username: message"*/
 			/**************************************/
 			char msg[MAX+10];
-			strcpy(msg,"username: ");  //TODO: check edge case
+			bzero(msg, sizeof(msg));  
+			strcpy(msg,name);//TODO: check edge case
+			strcat(msg,": ");
 			strcat(msg,buffer);
 			if (send(sockfd, msg, sizeof(msg), 0)<0){
-				printf("Sending broadcast message failed...");
+				printf("Sending broadcast message failed...\n");
 				exit(1);
 			}
 		}

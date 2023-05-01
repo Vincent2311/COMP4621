@@ -50,7 +50,6 @@ int isNewUser(char *name)
 	/*******************************************/
 	/* Compare the name with existing usernames */
 	/*******************************************/
-	printf("enter isNew");
 	for (unsigned int i = 0; i < users_count; i++)
 	{
 		if (!strcmp(name, listOfUsers[i]->username))
@@ -100,6 +99,7 @@ int get_sockfd(char *name)
 			break;
 		}
 	}
+
 
 	return sock;
 }
@@ -254,20 +254,21 @@ int main()
 							/********************************/
 							/* Get the user name and add the user to the userlist*/
 							/**********************************/
+							
 							char name[C_NAME_LEN+1];
-							int j = 8;
-							for (;buffer[j] !='\0';j++){
-								name[j-8] = buffer[j];
-							}
-							name[j] = '\0';
+							bzero(name,sizeof(name));
+							char  *p = buffer;
+    						p += 8;
+    						strcpy(name,p);
     						
 							printf("The name of the user of incoming connection is: %s\n",name); 
+							
 							if (isNewUser(name) == -1)
 							{
 								/********************************/
 								/* it is a new user and we need to handle the registration*/
 								/**********************************/
-								user_info_t *new_user;
+								user_info_t *new_user = (user_info_t *) malloc(sizeof(user_info_t)); //TODO: free
 								new_user->sockfd = pfds[i].fd;
 								new_user->state = 1;
 								strcpy(new_user->username,name);
@@ -281,8 +282,8 @@ int main()
 								strcpy(file_name,name);
 								strcat(file_name, ".txt");
 								fp  = fopen (file_name, "w");  //TODO: correct?
-								fclose (fp);
-								
+								fclose(fp);
+
 								// broadcast the welcome message (send to everyone except the listener)
 								bzero(buffer, sizeof(buffer));
 								strcpy(buffer, "Welcome ");
@@ -291,7 +292,7 @@ int main()
 								/*****************************/
 								/* Broadcast the welcome message*/
 								/*****************************/
-								for (unsigned int j = 1; j < users_count;j++){
+								for (unsigned int j = 1; j <= fd_count;j++){
 									if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 								}
@@ -299,8 +300,8 @@ int main()
 								/* send registration success message to the new user*/
 								/*****************************/
 								bzero(buffer, sizeof(buffer));
-								strcpy(buffer, "A new account has been created.");
-								if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
+								strcpy(buffer, "A new account has been created.\n");
+								if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 							}
 							else
@@ -318,6 +319,7 @@ int main()
 									}
 								}
 								user->state = 1;
+								user->sockfd = pfds[i].fd;
 								/********************************/
 								/* send the offline messages to the user and empty the message box*/
 								/**********************************/
@@ -326,11 +328,13 @@ int main()
 								strcpy(file_name,name);
 								strcat(file_name, ".txt");
 								fp  = fopen (file_name, "r"); 
+								if (fp == NULL) printf("Error when opening the file\n");
 								
 								char * line = NULL;
     							size_t len = 0;
-								while (getline(&line, &len, fp) != -1) {
-        							if (send(user->sockfd, line, sizeof(line), 0) == -1)
+								ssize_t read;
+								while ((read = getline(&line, &len, fp)) != -1) {
+        							if (send(user->sockfd, line, read *sizeof(char), 0) == -1)
 										perror("send");
 								}
 								fclose (fp);
@@ -343,7 +347,7 @@ int main()
 								/*****************************/
 								/* Broadcast the welcome message*/
 								/*****************************/
-								for (unsigned int j = 1; j < users_count;j++){
+								for (unsigned int j = 1; j <= fd_count;j++){
 									if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 								}
@@ -359,7 +363,7 @@ int main()
 							/*********************************/
 							/* Broadcast the leave message to the other users in the group*/
 							/**********************************/
-							for (unsigned int j = 1; j < users_count;j++){
+							for (unsigned int j = 1; j <= fd_count;j++){
 								if (j==i) continue;
 								if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
 									perror("send");
@@ -378,7 +382,10 @@ int main()
 								}
 							}
 							user->state = 0;
+							user->sockfd = 0;
 							// close the socket and remove the socket from pfds[]
+							while(recv(pfds[i].fd, buffer, sizeof buffer, 0) != 0)
+								;
 							close(pfds[i].fd);
 							del_from_pfds(pfds, i, &fd_count);
 						}
@@ -433,13 +440,13 @@ int main()
 							for (; idx < sizeof(buffer); idx++)
 							{
 								if(buffer[idx]==':') break;
-								destname[idx] = buffer[idx];	
+								destname[idx-1] = buffer[idx];	
 							}
+							destname[idx-1] = '\0';
 							destsock = get_sockfd(destname);
-							for (size_t j = idx+1; j < sizeof(buffer); j++)
-							{
-								msg[j-idx-1] = buffer[j];	
-							}
+							char *p = buffer;
+							p += 1+strlen(destname)+2;
+							strcpy(msg,p);
 
 							if (destsock == -1)
 							{
@@ -459,6 +466,7 @@ int main()
 								strcpy(sendmsg, sendname);
 								strcat(sendmsg, " to you: ");
 								strcat(sendmsg, msg);
+								strcat(sendmsg,"\n");
 
 								/**************************************/
 								/* According to the state of target user, send the msg to online user or write the msg into offline user's message box*/
@@ -483,7 +491,8 @@ int main()
 									char file_name[C_NAME_LEN + 10];
 									strcpy(file_name,destname);
 									strcat(file_name, ".txt");
-									fp  = fopen (file_name, "w"); 
+									fp  = fopen (file_name, "a"); 
+									if (fp == NULL) printf("Error when opening the file\n");
 									fputs(sendmsg, fp);
 									fclose (fp);
 
@@ -501,7 +510,7 @@ int main()
 							/*********************************************/
 							/* Broadcast the message to all users except the one who sent the message*/
 							/*********************************************/
-							for (unsigned int j = 1; j < users_count;j++){
+							for (unsigned int j = 1; j < fd_count;j++){
 								if(i==j) continue;
 								if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
 									perror("send");
