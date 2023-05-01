@@ -100,7 +100,7 @@ int main(){
 		puts("Sending registration failed");
 		exit(1);
 	}
-	printf("Register/Login message sent to server.\n");
+	printf("Register/Login message sent to server.\n\n");
 
 
 
@@ -133,7 +133,7 @@ int main(){
         	buffer[strcspn(buffer, "\n")] = '\0'; 
     	}
 		if ((strncmp(buffer, "EXIT", 4)) == 0) {
-			printf("Client Exit...\n"); //TODO: ?
+			printf("Client Exit...\n");
 			/********************************************/
 			/* Send exit message to the server and exit */
 			/* Remember to terminate the thread and close the socket */
@@ -156,7 +156,7 @@ int main(){
 		}
 		else if (strncmp(buffer, "#", 1) == 0) {
 			// If the user want to send a direct message to another user, e.g., aa wants to send direct message "Hello" to bb, aa needs to input "#bb:Hello"
-			printf("send direct message\n");
+			//printf("send direct message\n");
 			if (send(sockfd, buffer, sizeof(buffer), 0)<0){
 				printf("Sending direct message failed...\n");
 				exit(1);

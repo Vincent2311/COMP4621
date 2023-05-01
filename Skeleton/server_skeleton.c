@@ -16,8 +16,6 @@
 #define MAX_USERS 50				 // max number of users
 static unsigned int users_count = 0; // number of registered users
 
-//TODO: check \0 in the name
-
 static user_info_t *listOfUsers[MAX_USERS] = {0}; // list of users
 
 /* Add user to userList */
@@ -221,7 +219,7 @@ int main()
 						printf("pollserver: new connection from %s on socket %d\n",inet_ntoa(client_addr.sin_addr),client_socket);
 						// send welcome message
 						bzero(buffer, sizeof(buffer));
-						strcpy(buffer, "Welcome to the chat room!\nPlease enter a nickname.\n");
+						strcpy(buffer, "Welcome to the chat room!\nPlease enter a nickname.");
 						if (send(client_socket, buffer, sizeof(buffer), 0) == -1)
 							perror("send");
 					}
@@ -288,11 +286,11 @@ int main()
 								bzero(buffer, sizeof(buffer));
 								strcpy(buffer, "Welcome ");
 								strcat(buffer, name);
-								strcat(buffer, " to join the chat room!\n");
+								strcat(buffer, " to join the chat room!");
 								/*****************************/
 								/* Broadcast the welcome message*/
 								/*****************************/
-								for (unsigned int j = 1; j <= fd_count;j++){
+								for (unsigned int j = 1; j < fd_count;j++){
 									if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 								}
@@ -300,7 +298,7 @@ int main()
 								/* send registration success message to the new user*/
 								/*****************************/
 								bzero(buffer, sizeof(buffer));
-								strcpy(buffer, "A new account has been created.\n");
+								strcpy(buffer, "A new account has been created.");
 								if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 							}
@@ -343,11 +341,12 @@ int main()
 								// broadcast the welcome message (send to everyone except the listener)
 								bzero(buffer, sizeof(buffer));
 								strcat(buffer, name);
-								strcat(buffer, " is online!\n");
+								strcat(buffer, " is online!");
 								/*****************************/
 								/* Broadcast the welcome message*/
 								/*****************************/
-								for (unsigned int j = 1; j <= fd_count;j++){
+								for (unsigned int j = 1; j < fd_count;j++){
+									if(j==i) continue;
 									if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 								}
@@ -359,11 +358,11 @@ int main()
 							// send leave message to the other members
 							bzero(buffer, sizeof(buffer));
 							strcpy(buffer, get_username(pfds[i].fd));
-							strcat(buffer, " has left the chatroom\n");
+							strcat(buffer, " has left the chatroom");
 							/*********************************/
 							/* Broadcast the leave message to the other users in the group*/
 							/**********************************/
-							for (unsigned int j = 1; j <= fd_count;j++){
+							for (unsigned int j = 1; j < fd_count;j++){
 								if (j==i) continue;
 								if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
 									perror("send");
@@ -454,7 +453,7 @@ int main()
 								/* The target user is not found. Send "no such user..." messsge back to the source client*/
 								/*************************************/
 								bzero(buffer, sizeof(buffer));
-								strcpy(buffer, "There is no such user. Please check your input format.\n");
+								strcpy(buffer, "There is no such user. Please check your input format.");
 								if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 							}
@@ -465,8 +464,7 @@ int main()
 								char sendmsg[MAX];
 								strcpy(sendmsg, sendname);
 								strcat(sendmsg, " to you: ");
-								strcat(sendmsg, msg);
-								strcat(sendmsg,"\n");
+								strcat(sendmsg, msg);								
 
 								/**************************************/
 								/* According to the state of target user, send the msg to online user or write the msg into offline user's message box*/
@@ -493,6 +491,7 @@ int main()
 									strcat(file_name, ".txt");
 									fp  = fopen (file_name, "a"); 
 									if (fp == NULL) printf("Error when opening the file\n");
+									strcat(sendmsg,"\n");
 									fputs(sendmsg, fp);
 									fclose (fp);
 
