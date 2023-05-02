@@ -87,7 +87,7 @@ int main(){
     }
     else {
         name[strcspn(name, "\n")] = '\0';
-    	}
+    }
 	while (strlen(name) > C_NAME_LEN)
 	{
 		printf("Input name exceeds max name lenght\n");
@@ -142,7 +142,12 @@ int main(){
 				puts("Sending MSG_EXIT failed");
 				exit(1);
 			}
-			// pthread_join(recv_server_msg_thread,NULL);
+			
+			int s = pthread_cancel(recv_server_msg_thread);
+			if (s != 0){
+				printf("error when cancelling the thread\n");
+				exit(1);
+			}
 			close(sockfd);
 			printf("It's OK to Close the Window Now OR enter ctrl+c\n");
 		}

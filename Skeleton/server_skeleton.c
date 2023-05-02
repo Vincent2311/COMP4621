@@ -318,6 +318,10 @@ int main()
 								}
 								user->state = 1;
 								user->sockfd = pfds[i].fd;
+								bzero(buffer, sizeof(buffer));
+								strcpy(buffer, "Welcome back! The message box contains:");
+								if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
+										perror("send");
 								/********************************/
 								/* send the offline messages to the user and empty the message box*/
 								/**********************************/
@@ -335,8 +339,8 @@ int main()
         							if (send(user->sockfd, line, read *sizeof(char), 0) == -1)
 										perror("send");
 								}
-								fclose (fp);
-								remove(file_name); 
+								fclose(fp);
+								fclose(fopen(file_name, "w"));
 								
 								// broadcast the welcome message (send to everyone except the listener)
 								bzero(buffer, sizeof(buffer));
