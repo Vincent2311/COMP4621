@@ -142,7 +142,7 @@ int main()
 	int fd_size = 5;
 	struct pollfd *pfds = malloc(sizeof *pfds * fd_size);
 
-	int yes = 1; // for setsockopt() SO_REUSEADDR, below //TODO:
+	int yes = 1; // for setsockopt() SO_REUSEADDR, below 
 	int i, j, u, rv;
 
 	/**********************************************************/
@@ -235,7 +235,7 @@ int main()
 						if (nbytes == 0)
 						{
 							// connection closed
-							printf("pollserver: socket %d hung up\n", pfds[i].fd); // TODO:Indeed?
+							printf("pollserver: socket %d hung up\n", pfds[i].fd); 
 						}
 						else
 						{
@@ -257,9 +257,6 @@ int main()
 							// format in REGISTERaa:password 
 							char name[C_NAME_LEN+1];
 							bzero(name,sizeof(name));
-							// char  *p = buffer;
-    						// p += 8;
-    						// strcpy(name,p);
 							char incoming_password[MAX];
 							char  *p;
 							p=strstr(buffer, ":");
@@ -463,7 +460,7 @@ int main()
 							/* Change the state of this user to offline*/
 							/**********************************/
 							user->state = 0;
-							user->sockfd = 0;
+							user->sockfd = -2;
 							// close the socket and remove the socket from pfds[]
 							while(recv(pfds[i].fd, buffer, sizeof(buffer), 0) != 0)
 								;
@@ -488,7 +485,7 @@ int main()
 								if(listOfUsers[j]->state)
 									strcat(user_name_state,"*");
 								if(j==0) strcpy(ToClient, user_name_state);
-								else strcat(ToClient, user_name_state); //TODO:
+								else strcat(ToClient, user_name_state); 
 								strcat(ToClient,"\t");
 								bzero(user_name_state, sizeof(user_name_state));
 							}
@@ -604,3 +601,5 @@ int main()
 	}// end for(;;)
 	return 0;
 }
+
+

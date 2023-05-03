@@ -263,9 +263,9 @@ int main(){
 			/*************************************/
 			/* Sending broadcast message. The send message should be of the format "username: message"*/
 			/**************************************/
-			char msg[MAX+10];
+			char msg[MAX+C_NAME_LEN+3];
 			bzero(msg, sizeof(msg));  
-			strcpy(msg,name);//TODO: check edge case
+			strcpy(msg,name);
 			strcat(msg,": ");
 			strcat(msg,buffer);
 			if (send(sockfd, msg, sizeof(msg), 0)<0){
