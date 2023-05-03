@@ -36,6 +36,65 @@ void recv_server_msg_handler() {
 	}
 }
 
+void check_format(char *name_and_password,char *name,char*incoming_password) {
+	int flag;
+	char  *p;
+	do{	
+		if ((strncmp(name_and_password, "EXIT", 4)) == 0) {
+			printf("Client Exit...\n");
+			/********************************************/
+			/* Send exit message to the server and exit */
+			/* Remember to terminate the thread and close the socket */
+			/********************************************/
+			if (send(sockfd, name_and_password, sizeof(name_and_password), 0)<0){
+				printf("Sending MSG_EXIT failed");
+				exit(1);
+			}
+			
+			close(sockfd);
+			printf("It's OK to Close the Window Now OR enter ctrl+c\n");
+			while (1)  //Wait until the client disconnect
+				;
+			
+		}
+		flag = 1;
+		p=strstr(name_and_password, ":");
+		if(p==NULL){
+			flag = 0;
+			printf("registration/Login format wrong\n");
+		}
+		else{
+			p+=1;
+			strcpy(incoming_password,p);
+			bzero(name,sizeof(name));
+			size_t idx = 0;
+			for (; idx < strlen(name_and_password); idx++)
+			{
+				if(name_and_password[idx]==':') break;
+				name[idx] = name_and_password[idx];	
+			}
+			name[idx] = '\0';
+			if(strlen(name) > C_NAME_LEN)
+			{
+				printf("Input name exceeds max name lenght\n");
+				flag = 0;
+			}
+			if(strlen(incoming_password)==0 || strlen(name)==0) {
+				printf("Please input password or name\n");
+				flag = 0;
+			}
+		}
+		if(flag==0){
+			if (fgets(name_and_password, sizeof(name_and_password), stdin) == NULL) {
+        		printf("Fail to read the input stream\n");
+    		}
+    		else {
+        		name_and_password[strcspn(name_and_password, "\n")] = '\0';
+    		}
+		}
+	}while(flag == 0);
+}
+
 int main(){
     int n;
 	int nbytes;
@@ -75,40 +134,73 @@ int main(){
     if (nbytes = recv(sockfd, buffer, sizeof(buffer), 0)==-1){
         perror("recv");
     }
-    printf("%s\n", buffer);
+    printf("%s\n",buffer);
 
 	/*************************************/
 	/* Input the nickname and send a message to the server */
 	/* Note that we concatenate "REGISTER" before the name to notify the server it is the register/login message*/
 	/*******************************************/
-	char name[MAX];
-	if (fgets(name, sizeof(name), stdin) == NULL) {
+	char name_and_password[MAX];
+	if (fgets(name_and_password, sizeof(name_and_password), stdin) == NULL) {
         	printf("Fail to read the input stream\n");
     }
     else {
-        name[strcspn(name, "\n")] = '\0';
+        name_and_password[strcspn(name_and_password, "\n")] = '\0';
     }
-	while (strlen(name) > C_NAME_LEN)
-	{
-		printf("Input name exceeds max name lenght\n");
-		scanf("%s",name);
-	}
+
+	
+	char incoming_password[MAX];
+	char name[C_NAME_LEN+1];
+	check_format(name_and_password,name,incoming_password);
+	
 	bzero(buffer, sizeof(buffer));
 	strcpy(buffer,"REGISTER");
-	strcat(buffer, name);
+	strcat(buffer, name_and_password);
 	if (send(sockfd, buffer, sizeof(buffer), 0)<0){
 		puts("Sending registration failed");
 		exit(1);
 	}
 	printf("Register/Login message sent to server.\n\n");
 
-
-
-    // receive welcome message "welcome xx to joint the chatroom. A new account has been created." (registration case) or "welcome back! The message box contains:..." (login case)
-    bzero(buffer, sizeof(buffer));
+	// entering password checking state
+	bzero(buffer, sizeof(buffer));
     if (recv(sockfd, buffer, sizeof(buffer), 0)==-1){
         perror("recv");
     }
+
+	while ((strncmp(buffer, "SUCCESS", 7)) != 0)
+	{
+		printf("Please entering your correct name and password. Format: name:password \n");
+		bzero(name_and_password, sizeof(name_and_password));
+		bzero(name, sizeof(name));
+		bzero(incoming_password, sizeof(incoming_password));
+		if (fgets(name_and_password, sizeof(name_and_password), stdin) == NULL) {
+        	printf("Fail to read the input stream\n");
+    	}
+    	else {
+        	name_and_password[strcspn(name_and_password, "\n")] = '\0';
+    	}
+		check_format(name_and_password,name,incoming_password);
+		
+		bzero(buffer, sizeof(buffer));
+		strcpy(buffer,"REGISTER");
+		strcat(buffer, name_and_password);
+		if (send(sockfd, buffer, sizeof(buffer), 0)<0){
+			printf("Sending registration failed");
+			exit(1);
+		}
+
+		bzero(buffer, sizeof(buffer));
+   		if (recv(sockfd, buffer, sizeof(buffer), 0)==-1){
+        	perror("recv");
+    	}
+	}
+	
+
+    // receive welcome message "welcome xx to joint the chatroom. A new account has been created." (registration case) or "welcome back! The message box contains:..." (login case)
+	char *p = buffer;
+	p += 7;
+	strcpy(buffer,p);
     printf("%s\n", buffer);
 
     /*****************************************************/
@@ -139,7 +231,7 @@ int main(){
 			/* Remember to terminate the thread and close the socket */
 			/********************************************/
 			if (send(sockfd, buffer, sizeof(buffer), 0)<0){
-				puts("Sending MSG_EXIT failed");
+				printf("Sending MSG_EXIT failed");
 				exit(1);
 			}
 			

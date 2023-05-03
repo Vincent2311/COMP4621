@@ -65,6 +65,7 @@ char *get_username(int ss)
 {
 	int i;
 	static char uname[MAX];
+	strcpy(uname,"\0");
 	/*******************************************/
 	/* Get the user name by the user's sock fd */
 	/*******************************************/
@@ -219,7 +220,7 @@ int main()
 						printf("pollserver: new connection from %s on socket %d\n",inet_ntoa(client_addr.sin_addr),client_socket);
 						// send welcome message
 						bzero(buffer, sizeof(buffer));
-						strcpy(buffer, "Welcome to the chat room!\nPlease enter a nickname.");
+						strcpy(buffer, "Welcome to the chat room!\nPlease enter a nickname and the password. Format: name:password");
 						if (send(client_socket, buffer, sizeof(buffer), 0) == -1)
 							perror("send");
 					}
@@ -253,12 +254,27 @@ int main()
 							/* Get the user name and add the user to the userlist*/
 							/**********************************/
 							
+							// format in REGISTERaa:password 
 							char name[C_NAME_LEN+1];
 							bzero(name,sizeof(name));
-							char  *p = buffer;
-    						p += 8;
-    						strcpy(name,p);
-    						
+							// char  *p = buffer;
+    						// p += 8;
+    						// strcpy(name,p);
+							char incoming_password[MAX];
+							char  *p;
+							p=strstr(buffer, ":");
+							p += 1;
+							strcpy(incoming_password,p);
+
+							size_t idx = 8;
+							
+							for (; idx < sizeof(buffer)/buffer[0]; idx++)
+							{
+								if(buffer[idx]==':') break;
+								name[idx-8] = buffer[idx];	
+							}
+							name[idx-8] = '\0';
+
 							printf("The name of the user of incoming connection is: %s\n",name); 
 							
 							if (isNewUser(name) == -1)
@@ -266,7 +282,7 @@ int main()
 								/********************************/
 								/* it is a new user and we need to handle the registration*/
 								/**********************************/
-								user_info_t *new_user = (user_info_t *) malloc(sizeof(user_info_t)); //TODO: free
+								user_info_t *new_user = (user_info_t *) malloc(sizeof(user_info_t)); 
 								new_user->sockfd = pfds[i].fd;
 								new_user->state = 1;
 								strcpy(new_user->username,name);
@@ -279,7 +295,15 @@ int main()
 								char file_name[C_NAME_LEN + 10];
 								strcpy(file_name,name);
 								strcat(file_name, ".txt");
-								fp  = fopen (file_name, "w");  //TODO: correct?
+								fp  = fopen (file_name, "w");  
+								fclose(fp);
+
+								//create a password file
+								strcpy(file_name,"password_");
+								strcat(file_name,name);
+								strcat(file_name, ".txt");
+								fp  = fopen (file_name, "w");
+								fputs(incoming_password, fp);  
 								fclose(fp);
 
 								// broadcast the welcome message (send to everyone except the listener)
@@ -290,7 +314,15 @@ int main()
 								/*****************************/
 								/* Broadcast the welcome message*/
 								/*****************************/
+								char msg[MAX];
 								for (unsigned int j = 1; j < fd_count;j++){
+									if(j==i) {
+										strcpy(msg,"SUCCESS");
+										strcat(msg,buffer);
+										if (send(pfds[j].fd, msg, sizeof(msg), 0) == -1)
+											perror("send");
+										continue;
+									}
 									if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 								}
@@ -298,7 +330,7 @@ int main()
 								/* send registration success message to the new user*/
 								/*****************************/
 								bzero(buffer, sizeof(buffer));
-								strcpy(buffer, "A new account has been created.");
+								strcat(buffer, "A new account has been created.");
 								if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
 							}
@@ -307,58 +339,114 @@ int main()
 								/********************************/
 								/* it's an existing user and we need to handle the login. Note the state of user,*/
 								/**********************************/
-								user_info_t *user;
-								for (unsigned int j = 0; j < users_count; j++)
-								{
-									if (!strcmp(name, listOfUsers[j]->username))
-									{
-										user = listOfUsers[j];
-										break;
-									}
-								}
-								user->state = 1;
-								user->sockfd = pfds[i].fd;
-								bzero(buffer, sizeof(buffer));
-								strcpy(buffer, "Welcome back! The message box contains:");
-								if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
-										perror("send");
-								/********************************/
-								/* send the offline messages to the user and empty the message box*/
-								/**********************************/
+								// read user's password
 								FILE* fp;
 								char file_name[C_NAME_LEN + 10];
-								strcpy(file_name,name);
+								strcpy(file_name,"password_");
+								strcat(file_name,name);
 								strcat(file_name, ".txt");
 								fp  = fopen (file_name, "r"); 
-								if (fp == NULL) printf("Error when opening the file\n");
+								if (fp == NULL) printf("Error when checking the password file\n");
 								
-								char * line = NULL;
-    							size_t len = 0;
-								ssize_t read;
-								while ((read = getline(&line, &len, fp)) != -1) {
-        							if (send(user->sockfd, line, read *sizeof(char), 0) == -1)
-										perror("send");
+								char password[MAX];
+								size_t password_len = 0;
+								if (fgets(password, sizeof(password), fp) == NULL) {
+										printf("Fail to read the password\n");
+								}
+								else {
+									password[strcspn(password, "\n")] = '\0';
 								}
 								fclose(fp);
-								fclose(fopen(file_name, "w"));
-								
-								// broadcast the welcome message (send to everyone except the listener)
-								bzero(buffer, sizeof(buffer));
-								strcat(buffer, name);
-								strcat(buffer, " is online!");
-								/*****************************/
-								/* Broadcast the welcome message*/
-								/*****************************/
-								for (unsigned int j = 1; j < fd_count;j++){
-									if(j==i) continue;
-									if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
+
+								if(strcmp(incoming_password,password)!=0){
+									bzero(buffer, sizeof(buffer));
+									strcpy(buffer,"FAILURE");
+									if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
 										perror("send");
+									continue;
+								}
+								else{
+									user_info_t *user;
+									for (unsigned int j = 0; j < users_count; j++)
+									{
+										if (!strcmp(name, listOfUsers[j]->username))
+										{
+											user = listOfUsers[j];
+											break;
+										}
+									}
+									user->state = 1;
+									user->sockfd = pfds[i].fd;
+									bzero(buffer, sizeof(buffer));
+									strcpy(buffer,"SUCCESS");
+									strcat(buffer, "Welcome back! The message box contains:");
+									if (send(pfds[i].fd, buffer, sizeof(buffer), 0) == -1)
+											perror("send");
+									/********************************/
+									/* send the offline messages to the user and empty the message box*/
+									/**********************************/
+									char file_name[C_NAME_LEN + 10];
+									strcpy(file_name,name);
+									strcat(file_name, ".txt");
+									fp  = fopen (file_name, "r"); 
+									if (fp == NULL) printf("Error when opening the file\n");
+									
+									char * line = NULL;
+									size_t len = 0;
+									ssize_t read;
+									while ((read = getline(&line, &len, fp)) != -1) {
+										if (send(user->sockfd, line, read *sizeof(char), 0) == -1)
+											perror("send");
+									}
+									fclose(fp);
+									fclose(fopen(file_name, "w"));
+									
+									// broadcast the welcome message (send to everyone except the listener)
+									bzero(buffer, sizeof(buffer));
+									strcat(buffer, name);
+									strcat(buffer, " is online!");
+									/*****************************/
+									/* Broadcast the welcome message*/
+									/*****************************/
+									for (unsigned int j = 1; j < fd_count;j++){
+										if(j==i) continue;
+										if (send(pfds[j].fd, buffer, sizeof(buffer), 0) == -1)
+											perror("send");
+									}
 								}
 							}
 						}
 						else if (strncmp(buffer, "EXIT", 4) == 0)
-						{
+						{	
 							printf("Got exit message. Removing user from system\n");
+							//handle user exit when fail to register/login
+							char *name;
+							name = get_username(pfds[i].fd);
+							if(strlen(name)==0) {
+								while(recv(pfds[i].fd, buffer, sizeof(buffer), 0) != 0)
+								;
+								close(pfds[i].fd);
+								del_from_pfds(pfds, i, &fd_count);
+								continue;
+							}
+							
+							user_info_t *user;
+							for (unsigned int j = 0; j < users_count; j++)
+							{
+								if (!strcmp(name, listOfUsers[j]->username))
+								{
+									user = listOfUsers[j];
+									break;
+								}
+							}
+							if(user->state==0){
+								while(recv(pfds[i].fd, buffer, sizeof(buffer), 0) != 0)
+									;
+								close(pfds[i].fd);
+								del_from_pfds(pfds, i, &fd_count);
+								continue;
+							}
+							
 							// send leave message to the other members
 							bzero(buffer, sizeof(buffer));
 							strcpy(buffer, get_username(pfds[i].fd));
@@ -374,20 +462,10 @@ int main()
 							/*********************************/
 							/* Change the state of this user to offline*/
 							/**********************************/
-							char* name = get_username(pfds[i].fd);
-							user_info_t *user;
-							for (unsigned int j = 0; j < users_count; j++)
-							{
-								if (!strcmp(name, listOfUsers[j]->username))
-								{
-									user = listOfUsers[j];
-									break;
-								}
-							}
 							user->state = 0;
 							user->sockfd = 0;
 							// close the socket and remove the socket from pfds[]
-							while(recv(pfds[i].fd, buffer, sizeof buffer, 0) != 0)
+							while(recv(pfds[i].fd, buffer, sizeof(buffer), 0) != 0)
 								;
 							close(pfds[i].fd);
 							del_from_pfds(pfds, i, &fd_count);
@@ -440,7 +518,7 @@ int main()
 							/*************************************/
 							strcpy(sendname, get_username(pfds[i].fd));
 							size_t idx = 1;
-							for (; idx < sizeof(buffer); idx++)
+							for (; idx < sizeof(buffer)/buffer[0]; idx++)
 							{
 								if(buffer[idx]==':') break;
 								destname[idx-1] = buffer[idx];	
