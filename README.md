@@ -1,4 +1,4 @@
-# COMP4621-Project
+# Project of COMP4621
 
 ## Compile
 
